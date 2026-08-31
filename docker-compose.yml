@@ -1,0 +1,40 @@
+# Local S3-compatible object storage for Week 2.
+# RustFS is a high-performance, S3-compatible object store (drop-in for the
+# parts of the S3 API we use). Start it with:  docker compose up -d
+#
+# After it is up:
+#   - S3 API endpoint  ->  http://localhost:9000   (boto3 / DuckDB point here)
+#   - Web console      ->  http://localhost:9001   (log in to browse buckets)
+#
+# Credentials below are the well-known local defaults. They are fine for class
+# on localhost; never use them on a machine exposed to the network.
+services:
+  rustfs:
+    # Pinned to a specific version so every student gets the same known-good
+    # build for the whole course (":latest" can move under you mid-semester).
+    # Multi-arch image — works on both Intel and Apple Silicon Macs.
+    image: rustfs/rustfs:1.0.0-beta.8
+    container_name: de_week2_rustfs
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - rustfs_data:/data
+    command: ["/data"]
+    restart: unless-stopped
+    healthcheck:
+      # The S3 API answers an anonymous GET / with 403 (access denied) once it's
+      # up, so we only check that curl gets *a* response — not a 2xx. (`-f` would
+      # treat the 403 as a failure and the container would look unhealthy.)
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://127.0.0.1:9000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  rustfs_data:

@@ -1,0 +1,12 @@
+-- Day 2: move your customer_order_summary() SQL here.
+--
+-- One row per customer: customer_id, name, order_count, total_revenue.
+--   * dedup raw_customers first (keep the highest record_version) — a CTE works
+--   * join clean_orders to the deduped customers
+--   * GROUP BY customer; count orders, sum line_total
+--   * keep only customers with at least $min_orders orders (a BOUND parameter)
+--
+-- Run it with:  con.execute(read_sql("customer_order_summary"), {"min_orders": n})
+--
+-- Until you fill this in, the file is a harmless placeholder.
+SELECT 'TODO: customer_order_summary.sql not written yet' AS todo;
