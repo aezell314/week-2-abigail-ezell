@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from de_pipeline.config import settings
+from de_pipeline.config import get_s3_client, settings
 
 # Where downloaded raw files land. (data/ is git-ignored.)
 RAW_DIR = Path("data/raw")
@@ -27,7 +27,12 @@ RAW_DIR = Path("data/raw")
 def fetch_object(key: str, dest_dir: Path = RAW_DIR) -> Path:
     """Download the object ``key`` from the bucket into ``dest_dir``, and return
     the local path it was written to."""
-    raise NotImplementedError("Day 1: implement fetch_object()")
+    client = get_s3_client()
+    filename = dest_dir / key
+    client.download_file(Bucket=settings.bucket,
+                        Key=key,
+                        Filename=filename)
+    return filename
 
 
 def fetch_all(dest_dir: Path = RAW_DIR) -> dict[str, Path]:
@@ -36,10 +41,12 @@ def fetch_all(dest_dir: Path = RAW_DIR) -> dict[str, Path]:
 
     (The object keys to download are ``settings.orders_key`` and
     ``settings.customers_key``.)"""
-    raise NotImplementedError("Day 1: implement fetch_all()")
+    return {'orders':fetch_object(key=settings.orders_key),
+            'customers':fetch_object(key=settings.customers_key)}
 
 
 if __name__ == "__main__":
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
     # Quick manual check:  uv run python -m de_pipeline.fetch
     paths = fetch_all()
     for name, path in paths.items():

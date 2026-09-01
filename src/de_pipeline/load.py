@@ -31,7 +31,7 @@ DB_PATH = Path("data/warehouse.duckdb")
 def connect(db_path: Path = DB_PATH) -> duckdb.DuckDBPyConnection:
     """Open (creating it if needed) the DuckDB database at ``db_path`` and return
     the connection."""
-    raise NotImplementedError("Day 1: implement connect()")
+    return duckdb.connect(database=db_path, read_only=False)
 
 
 def load_orders(con: duckdb.DuckDBPyConnection, raw_dir: Path = RAW_DIR) -> int:
@@ -41,19 +41,26 @@ def load_orders(con: duckdb.DuckDBPyConnection, raw_dir: Path = RAW_DIR) -> int:
     Tip: ``read_csv_auto`` is fine here. The price column is messy ("$1,209.50"),
     so DuckDB will land it as text on its own — don't fight that. You'll cast it
     deliberately in transform.py."""
-    raise NotImplementedError("Day 1: implement load_orders()")
+    con.execute(f"""
+    CREATE OR REPLACE TABLE raw_orders
+    AS SELECT * FROM read_csv_auto('{raw_dir}/orders.csv')""")
+    return con.execute("SELECT COUNT(*) FROM raw_orders").fetchone()[0]
 
 
 def load_customers(con: duckdb.DuckDBPyConnection, raw_dir: Path = RAW_DIR) -> int:
     """Load ``raw_dir/customers.json`` into a table named ``raw_customers``.
     Return the number of rows loaded."""
-    raise NotImplementedError("Day 1: implement load_customers()")
+    con.execute(f"""
+    CREATE OR REPLACE TABLE raw_customers
+    AS SELECT * FROM read_json_auto('{raw_dir}/customers.json')""")
+    return con.execute("SELECT COUNT(*) FROM raw_customers").fetchone()[0]
 
 
 def load_all(con: duckdb.DuckDBPyConnection, raw_dir: Path = RAW_DIR) -> dict[str, int]:
     """Load both files and return ``{table_name: row_count}`` — i.e.
     ``{"raw_orders": ..., "raw_customers": ...}``."""
-    raise NotImplementedError("Day 1: implement load_all()")
+    return {'raw_orders': load_orders(con, raw_dir),
+            'raw_customers': load_customers(con, raw_dir)}
 
 
 if __name__ == "__main__":

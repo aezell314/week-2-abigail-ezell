@@ -38,6 +38,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
+import polars as pl
 
 # Where the .sql files live (you start using these on Day 2).
 SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
@@ -57,11 +58,11 @@ def dedupe_orders(con: duckdb.DuckDBPyConnection) -> int:
     """Build an ``orders_deduped`` table with exactly one row per ``order_id`` —
     the newest copy, by ``updated_at`` — and return its row count.
 
-    This is the classic DE dedup: ROW_NUMBER() OVER (PARTITION BY order_id
-    ORDER BY updated_at DESC) inside a CTE, then keep where the row number is 1.
     Keep all the original columns; don't clean anything yet (that's the next
     step)."""
-    raise NotImplementedError("Day 1: implement dedupe_orders() with ROW_NUMBER()")
+    con.execute(read_sql("orders_deduped"))
+    num_rows = con.execute("select count(*) from orders_deduped;").fetchone()[0]
+    return num_rows
 
 
 def clean_orders(con: duckdb.DuckDBPyConnection) -> int:
@@ -79,7 +80,9 @@ def clean_orders(con: duckdb.DuckDBPyConnection) -> int:
 
     Build it from ``orders_deduped`` (run ``dedupe_orders`` first), not from
     ``raw_orders`` — you don't want to clean duplicate rows."""
-    raise NotImplementedError("Day 1: implement clean_orders()")
+    con.execute(read_sql("clean_orders"))
+    num_rows = con.execute("select count(*) from clean_orders;").fetchone()[0]
+    return num_rows
 
 
 def customer_order_summary(con: duckdb.DuckDBPyConnection, min_orders: int = 1) -> int:
@@ -94,7 +97,9 @@ def customer_order_summary(con: duckdb.DuckDBPyConnection, min_orders: int = 1) 
       - ``min_orders`` is a threshold: only keep customers with at least that
         many orders. On Day 2, pass it into your SQL with PARAMETER BINDING
         (``con.execute(sql, {"min_orders": min_orders})``), not an f-string."""
-    raise NotImplementedError("Day 1: implement customer_order_summary()")
+    con.execute(read_sql("customer_order_summary"), {"min_orders": min_orders})
+    num_rows = con.execute("select count(*) from customer_order_summary;").fetchone()[0]
+    return num_rows
 
 
 def tag_revenue(con: duckdb.DuckDBPyConnection) -> int:
@@ -108,21 +113,41 @@ def tag_revenue(con: duckdb.DuckDBPyConnection) -> int:
     Polars, do the dedup + explode + group-by + sum there, then write the result
     back as a DuckDB table. (This is the week's "Polars as a tool choice, not a
     replacement" moment.)
-
-    Sketch:
-        cust = con.execute("SELECT customer_id, record_version, tags FROM raw_customers").pl()
-        rev  = con.execute("SELECT customer_id, total_revenue FROM customer_order_summary").pl()
-        # in Polars: dedup customers (keep highest record_version), explode tags,
-        # drop empty/null tags, join revenue, group by tag, sum -> DataFrame `out`
-        # with columns ["tag", "revenue"].
-        con.execute("CREATE OR REPLACE TABLE tag_revenue AS SELECT * FROM out")
     """
-    raise NotImplementedError("Day 2: implement tag_revenue() in Polars")
-
+    cust = con.execute("SELECT customer_id, record_version, tags FROM raw_customers").pl()
+    rev  = con.execute("SELECT customer_id, total_revenue FROM customer_order_summary").pl()
+    # dedup customers (keep highest record_version)
+    dedup_cust = (
+        cust.sort("record_version", descending=True)
+        .unique(subset=["customer_id"], keep="first")
+    )
+    # explode tags, drop empty/null tags, join revenue, group by tag
+    # sum -> DataFrame `out` with columns ["tag", "revenue"]
+    out = (
+        dedup_cust
+        .explode("tags")
+        .filter(pl.col("tags").is_not_null() & (pl.col("tags") != ""))
+        .join(rev, on="customer_id", how="inner")
+        .group_by("tags")
+        .agg(pl.col("total_revenue").sum().alias("revenue"))
+        .rename({"tags": "tag"})
+    )
+    con.execute("CREATE OR REPLACE TABLE tag_revenue AS SELECT * FROM out")
+    num_rows = con.execute("select count(*) from tag_revenue;").fetchone()[0]
+    return num_rows
 
 def run_transforms(con: duckdb.DuckDBPyConnection) -> dict[str, int]:
     """Run every transform in order and return ``{table_name: row_count}``.
 
     Order matters: dedupe_orders -> clean_orders -> customer_order_summary ->
     tag_revenue."""
-    raise NotImplementedError("Day 3: implement run_transforms()")
+    deduporders = dedupe_orders(con)
+    cleanorders = clean_orders(con)
+    custordersum = customer_order_summary(con)
+    tagrevenue = tag_revenue(con)
+    return {
+      'orders_deduped':deduporders,
+      'clean_orders':cleanorders,
+      'customer_order_summary':custordersum,
+      'tag_revenue':tagrevenue
+      }
