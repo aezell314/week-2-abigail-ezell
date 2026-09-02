@@ -77,7 +77,7 @@ The SQL transformation attempts multiple parsing strategies using `TRY_STRPTIME`
 
 Some orders do not contain a `customer_id`.
 
-Rather than allowing these records to disappear silently through an inner join, the pipeline handles them explicitly so that order totals reconcile:
+Rather than allowing these records to disappear silently through an inner join, this pipeline assigns them a customer_id of 0 so that order totals reconcile. In a real-life Production scenario, adding a not null constraint to the customer_id foreign key on the orders table would likely be the best option for data integrity. 
 
 ```text
 attributed orders + unassigned orders = all valid orders
