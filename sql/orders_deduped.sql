@@ -4,5 +4,12 @@
 -- updated_at — keeping all the original columns. Use a CTE with
 -- ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC).
 --
--- Until you fill this in, the file is a harmless placeholder.
-SELECT 'TODO: orders_deduped.sql not written yet' AS todo;
+CREATE OR REPLACE TABLE orders_deduped AS
+    WITH orders_ranked AS (
+        SELECT *,
+            ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) AS rownum
+        FROM raw_orders
+    )
+    SELECT * EXCLUDE (rownum, updated_at)
+    FROM orders_ranked
+    WHERE rownum = 1;

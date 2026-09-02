@@ -8,5 +8,40 @@
 --
 -- Run it with:  con.execute(read_sql("customer_order_summary"), {"min_orders": n})
 --
--- Until you fill this in, the file is a harmless placeholder.
-SELECT 'TODO: customer_order_summary.sql not written yet' AS todo;
+CREATE OR REPLACE TABLE customer_order_summary AS
+    WITH customers_cleaned AS (         
+        SELECT customer_id,                 
+            name,                 
+            email,                 
+            signup_date,                 
+            record_version,                 
+            address,                 
+            tags
+        FROM (
+            SELECT *,
+                ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY record_version DESC) AS rownum         
+            FROM raw_customers
+        )
+        WHERE rownum = 1 -- Filters customers BEFORE the join
+    ),  
+    orders_cleaned as (
+        select order_id,
+        coalesce(customer_id, 0) as customer_id,
+        sku,
+        quantity,
+        price,
+        status,
+        order_date,
+        line_total
+        from clean_orders
+    )
+    SELECT o.customer_id,
+        c.name,
+        count(o.order_id) as order_count,
+        sum(o.line_total) as total_revenue
+    FROM customers_cleaned c
+    right join orders_cleaned o
+    using(customer_id)
+    group by all
+    having count(o.order_id) >= $min_orders
+    ;
